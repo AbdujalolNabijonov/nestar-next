@@ -27,13 +27,14 @@ import RemoveRedEyeIcon from '@mui/icons-material/RemoveRedEye';
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 import 'swiper/css';
 import 'swiper/css/pagination';
-import { GET_PROPERTIES, GET_PROPERTY } from '../../apollo/user/query';
+import { GET_MEMBER, GET_PROPERTIES, GET_PROPERTY } from '../../apollo/user/query';
 import { T } from '../../libs/types/common';
 import { Direction, Message } from '../../libs/enums/common.enum';
-import { LIKE_TARGET_PROPERTY } from '../../apollo/user/mutation';
+import { CREATE_COMMENT, LIKE_TARGET_PROPERTY } from '../../apollo/user/mutation';
 import { Member } from '../../libs/types/member/member';
 import { sweetErrorAlert, sweetErrorHandling, sweetTopSmallSuccessAlert, sweetTopSuccessAlert } from '../../libs/sweetAlert';
 import { JwtPayload } from 'jwt-decode';
+import { GET_COMMENTS } from '../../apollo/admin/query';
 
 SwiperCore.use([Autoplay, Navigation, Pagination]);
 
@@ -75,6 +76,8 @@ const PropertyDetail: NextPage = ({ initialComment, initialDestinations, ...prop
 		onCompleted: (data: T) => {
 			setProperty(data.getProperty);
 			setSlideImage(data.getProperty.propertyImages[0])
+			if (propertyId)
+				setCommentInquiry({ ...commentInquiry, search: { commentRefId: propertyId } })
 		}
 	})
 
@@ -90,6 +93,24 @@ const PropertyDetail: NextPage = ({ initialComment, initialDestinations, ...prop
 		skip: !propertyId,
 		onCompleted: (data: T) => {
 			setDestinationProperty(data.getProperties.list)
+		}
+	})
+
+	const [createComment] = useMutation(CREATE_COMMENT)
+
+	const {
+		data: getCommentsData,
+		error: getCommentsError,
+		loading: getCommentsLoading,
+		refetch: getCommentRefetch
+	} = useQuery(GET_COMMENTS, {
+		fetchPolicy: "cache-and-network",
+		variables: { input: commentInquiry },
+		skip: !propertyId,
+		onCompleted: (data: T) => {
+			console.log("data:", data)
+			setCommentTotal(data.getComments.metaCounter[0].total);
+			setPropertyComments(data.getComments.list)
 		}
 	})
 
@@ -132,6 +153,18 @@ const PropertyDetail: NextPage = ({ initialComment, initialDestinations, ...prop
 	const changeImageHandler = (image: string) => {
 		setSlideImage(image);
 	};
+
+	const createCommentHandler = async () => {
+		try {
+			if (!user._id) throw new Error(Message.NOT_AUTHENTICATED);
+			await createComment({ variables: { input: insertCommentData } });
+			await sweetTopSmallSuccessAlert("Sucess");
+			await getCommentRefetch({ input: commentInquiry })
+		} catch (err: any) {
+			console.log(`ERROR, createCommentHandler: ${err.message}`);
+			await sweetErrorHandling(err)
+		}
+	}
 
 	const commentPaginationChangeHandler = async (event: ChangeEvent<unknown>, value: number) => {
 		commentInquiry.page = value;
@@ -219,7 +252,7 @@ const PropertyDetail: NextPage = ({ initialComment, initialDestinations, ...prop
 											) : (
 												<FavoriteBorderIcon
 													fontSize={'medium'}
-													// @ts-ignore
+												// @ts-ignore
 												/>
 											)}
 											<Typography>{property?.propertyLikes}</Typography>
@@ -449,6 +482,7 @@ const PropertyDetail: NextPage = ({ initialComment, initialDestinations, ...prop
 										<Button
 											className={'submit-review'}
 											disabled={insertCommentData.commentContent === '' || user?._id === ''}
+											onClick={createCommentHandler}
 										>
 											<Typography className={'title'}>Submit Review</Typography>
 											<svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 17 17" fill="none">
@@ -570,7 +604,7 @@ const PropertyDetail: NextPage = ({ initialComment, initialDestinations, ...prop
 										{destinationProperty.map((property: Property) => {
 											return (
 												<SwiperSlide className={'similar-homes-slide'} key={property.propertyTitle}>
-													<PropertyBigCard property={property} key={property?._id}likeMemberPropertyHandle={likeMemberPropertyHandle} />
+													<PropertyBigCard property={property} key={property?._id} likeMemberPropertyHandle={likeMemberPropertyHandle} />
 												</SwiperSlide>
 											);
 										})}
