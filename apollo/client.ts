@@ -7,7 +7,17 @@ import { getMainDefinition } from '@apollo/client/utilities';
 import { onError } from '@apollo/client/link/error';
 import { getJwtToken } from '../libs/auth';
 import { TokenRefreshLink } from 'apollo-link-token-refresh';
+import { socketVar } from './store';
 let apolloClient: ApolloClient<NormalizedCacheObject>;
+
+class LoggingWebSocket {
+	private server: WebSocket
+	constructor(url: string) {
+		this.server = new WebSocket(`${url}/?token=${getJwtToken()}`)
+		socketVar(this.server)
+	}
+
+}
 
 function getHeaders() {
 	const headers = {} as HeadersInit;
@@ -56,6 +66,7 @@ function createIsomorphicLink() {
 					return { headers: getHeaders() };
 				},
 			},
+			webSocketImpl: LoggingWebSocket
 		});
 
 		const errorLink = onError(({ graphQLErrors, networkError, response }) => {

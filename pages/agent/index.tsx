@@ -9,6 +9,12 @@ import AgentCard from '../../libs/components/common/AgentCard';
 import { useRouter } from 'next/router';
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 import { Member } from '../../libs/types/member/member';
+import { useMutation, useQuery } from '@apollo/client';
+import { GET_AGENTS } from '../../apollo/user/query';
+import { T } from '../../libs/types/common';
+import { LIKE_TARGET_MEMBER } from '../../apollo/user/mutation';
+import { sweetErrorHandling, sweetTopSmallSuccessAlert } from '../../libs/sweetAlert';
+import { Message } from '../../libs/enums/common.enum';
 
 export const getStaticProps = async ({ locale }: any) => ({
 	props: {
@@ -32,18 +38,65 @@ const AgentList: NextPage = ({ initialInput, ...props }: any) => {
 	const [searchText, setSearchText] = useState<string>('');
 
 	/** APOLLO REQUESTS **/
+	const [likaTargetMember] = useMutation(LIKE_TARGET_MEMBER);
+
+	const {
+		data: getAgentsData,
+		error: getAgentsError,
+		loading: getAgentsLoading,
+		refetch: getAgnetsRefetch
+	} = useQuery(GET_AGENTS, {
+		fetchPolicy: "cache-and-network",
+		notifyOnNetworkStatusChange: true,
+		variables: { input: initialInput },
+		onCompleted: (data: T) => {
+			setAgents(data.getAgents.list)
+			setTotal(data.getAgents.metaCounter[0].total)
+		}
+	})
+
 	/** LIFECYCLES **/
 	useEffect(() => {
 		if (router.query.input) {
 			const input_obj = JSON.parse(router?.query?.input as string);
 			setSearchFilter(input_obj);
-		} else
-			router.replace(`/agent?input=${JSON.stringify(searchFilter)}`, `/agent?input=${JSON.stringify(searchFilter)}`);
-
+			getAgnetsRefetch({ input: input_obj }).then()
+			switch (input_obj.sort) {
+				case "memberLikes":
+					setFilterSortName("Likes");
+					break
+				case "createdAt":
+					setFilterSortName(input_obj.direction === "DESC" ? "Recent" : "Oldest")
+					break
+				case "memberViews":
+					setFilterSortName("Views");
+					break
+				default:
+					break
+			}
+		}
 		setCurrentPage(searchFilter.page === undefined ? 1 : searchFilter.page);
 	}, [router]);
 
 	/** HANDLERS **/
+	const likeTargetMemberHandler = async (user: Member, memberId: string): Promise<void> => {
+		try {
+			if (!memberId) throw new Error(Message.SOMETHING_WENT_WRONG);
+			if (!user._id) throw new Error(Message.NOT_AUTHENTICATED);
+
+			await likaTargetMember({
+				variables: {
+					input: memberId
+				}
+			})
+			await sweetTopSmallSuccessAlert("Success", 700);
+			await getAgnetsRefetch({ input: initialInput })
+		} catch (err: any) {
+			console.log("ERROR: likeTargetMemberHandler,", err.message);
+			await sweetErrorHandling(err)
+		}
+	}
+
 	const sortingClickHandler = (e: MouseEvent<HTMLElement>) => {
 		setAnchorEl(e.currentTarget);
 		setSortingOpen(true);
@@ -54,23 +107,43 @@ const AgentList: NextPage = ({ initialInput, ...props }: any) => {
 		setAnchorEl(null);
 	};
 
-	const sortingHandler = (e: React.MouseEvent<HTMLLIElement>) => {
+	const sortingHandler = async (e: React.MouseEvent<HTMLLIElement>) => {
 		switch (e.currentTarget.id) {
 			case 'recent':
 				setSearchFilter({ ...searchFilter, sort: 'createdAt', direction: 'DESC' });
 				setFilterSortName('Recent');
+				router.push(
+					`agent/?input=${JSON.stringify({ ...searchFilter, sort: "createdAt", direction: 'DESC' })}`,
+					`agent/?input=${JSON.stringify({ ...searchFilter, sort: "createdAt", direction: 'DESC' })}`,
+					{ scroll: false }
+				)
 				break;
 			case 'old':
 				setSearchFilter({ ...searchFilter, sort: 'createdAt', direction: 'ASC' });
 				setFilterSortName('Oldest order');
+				router.push(
+					`agent/?input=${JSON.stringify({ ...searchFilter, sort: "createdAt", direction: 'ASC' })}`,
+					`agent/?input=${JSON.stringify({ ...searchFilter, sort: "createdAt", direction: 'ASC' })}`,
+					{ scroll: false }
+				)
 				break;
 			case 'likes':
 				setSearchFilter({ ...searchFilter, sort: 'memberLikes', direction: 'DESC' });
 				setFilterSortName('Likes');
+				router.push(
+					`agent/?input=${JSON.stringify({ ...searchFilter, sort: 'memberLikes', direction: 'DESC' })}`,
+					`agent/?input=${JSON.stringify({ ...searchFilter, sort: 'memberLikes', direction: 'DESC' })}`,
+					{ scroll: false }
+				)
 				break;
 			case 'views':
 				setSearchFilter({ ...searchFilter, sort: 'memberViews', direction: 'DESC' });
 				setFilterSortName('Views');
+				router.push(
+					`agent/?input=${JSON.stringify({ ...searchFilter, sort: 'memberViews', direction: 'DESC' })}`,
+					`agent/?input=${JSON.stringify({ ...searchFilter, sort: 'memberViews', direction: 'DESC' })}`,
+					{ scroll: false }
+				)
 				break;
 		}
 		setSortingOpen(false);
@@ -139,7 +212,7 @@ const AgentList: NextPage = ({ initialInput, ...props }: any) => {
 							</div>
 						) : (
 							agents.map((agent: Member) => {
-								return <AgentCard agent={agent} key={agent._id} />;
+								return <AgentCard agent={agent} key={agent._id} likeTargetMemberHandler={likeTargetMemberHandler} />;
 							})
 						)}
 					</Stack>

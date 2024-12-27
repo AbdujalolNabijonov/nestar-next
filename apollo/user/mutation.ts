@@ -95,31 +95,35 @@ export const UPDATE_MEMBER = gql`
 `;
 
 export const LIKE_TARGET_MEMBER = gql`
-	mutation LikeTargetMember($input: String!) {
-		likeTargetMember(memberId: $input) {
-			_id
-			memberType
-			memberStatus
-			memberAuthType
-			memberPhone
-			memberNick
-			memberFullName
-			memberImage
-			memberAddress
-			memberDesc
-			memberWarnings
-			memberBlocks
-			memberProperties
-			memberRank
-			memberPoints
-			memberLikes
-			memberViews
-			deletedAt
-			createdAt
-			updatedAt
-			accessToken
-		}
-	}
+mutation LikeTargetMember($input:String!){
+    likeTargetMember(input: $input) {
+        _id
+        memberNick
+        memberType
+        memberStatus
+        memberAuthType
+        memberPhone
+        memberFullName
+        memberImage
+        memberAddress
+        memberDesc
+        memberProperties
+        memberArticles
+        memberFollowers
+        memberFollowings
+        memberPoints
+        memberLikes
+        memberViews
+        memberComments
+        memberRank
+        memberWarnings
+        memberBlocks
+        deletedAt
+        createdAt
+        updatedAt
+        accessToken
+    }
+}
 `;
 
 /**************************
